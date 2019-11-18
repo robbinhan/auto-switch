@@ -4,6 +4,7 @@ extern crate base64;
 extern crate serde;
 extern crate serde_json;
 extern crate rand;
+extern crate clap;
 
 mod vmess;
 
@@ -16,7 +17,7 @@ use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
 use std::process::Command;
-
+use clap::{Arg, App};
 
 /**
 {
@@ -189,27 +190,57 @@ struct VmessJsonConfig {
     outbounds: Vec<vmess::outbound::Outbound>,
 }
 
-const SUB_URL: &str = "https://dler.cloud/subscribe/tWt8ThVD9uJlPEcx?mu=av2";
-
 
 #[tokio::main]
 async fn main() {
+    let matches = App::new("Auto switch vmess config")
+        .version("0.1")
+        .author("Robbin Han. <luckyhanbin@gmail.com>")
+        .arg(Arg::with_name("interval")
+            .short("i")
+            .long("interval")
+            .value_name("interval")
+            .help("check interval, unit is second")
+            .takes_value(true))
+        .arg(Arg::with_name("proxy_addr")
+            .short("p")
+            .long("proxy_addr")
+            .value_name("proxy_addr")
+            .help("gfw proxy address")
+            .takes_value(true))
+        .arg(Arg::with_name("sub_url")
+            .short("s")
+            .long("sub_url")
+            .value_name("sub_url")
+            .help("vmess subscribe url")
+            .required(true)
+            .takes_value(true))
+        .get_matches();
+
+    let interval = matches.value_of("interval").unwrap_or("60").parse::<u64>().unwrap();
+    println!("loop interval: {}", interval);
+
+    let proxy_addr = matches.value_of("proxy_addr").unwrap_or("http://127.0.0.1:1081");
+    println!("proxy_addr: {}", proxy_addr);
+
+    let sub_url = matches.value_of("sub_url").unwrap();
+    println!("sub_url: {}", sub_url);
 
     // test gfw timer
-    let mut loop_interval = Interval::new(Instant::now() + Duration::from_secs(60), Duration::from_secs(60));
+    let mut loop_interval = Interval::new(Instant::now() + Duration::from_secs(interval), Duration::from_secs(interval));
 
     loop {
         let instant = loop_interval.next().await.unwrap();
 
         println!("loop_interval: {:?}", instant);
 
-        match test_gfw().await {
+        match test_gfw(proxy_addr).await {
             Ok(_res) => {
                 println!("test gfw ok");
             }
             Err(err) => {
                 println!("test gfw fail,{:?}", err);
-                let _ = switch_config().await;
+                let _ = switch_config(sub_url).await;
             }
         };
     }
@@ -232,11 +263,11 @@ async fn get_vemsses(url: &str) -> Result<String, reqwest::Error> {
 }
 
 // 测试gfw
-async fn test_gfw() -> Result<bool, reqwest::Error> {
+async fn test_gfw(proxy_addr: &str) -> Result<bool, reqwest::Error> {
     let res = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
-        .proxy(reqwest::Proxy::https("http://127.0.0.1:1081")?)
-        .proxy(reqwest::Proxy::http("http://127.0.0.1:1081")?)
+        .proxy(reqwest::Proxy::https(proxy_addr)?)
+        .proxy(reqwest::Proxy::http(proxy_addr)?)
         .build()?
         .get("https://medium.com/")
         .send().await?;
@@ -248,9 +279,9 @@ async fn test_gfw() -> Result<bool, reqwest::Error> {
 }
 
 // 切换配置
-async fn switch_config() -> Result<String, reqwest::Error> {
+async fn switch_config(sub_url:&str) -> Result<String, reqwest::Error> {
     // get sub body
-    let body = get_vemsses(SUB_URL).await?;
+    let body = get_vemsses(sub_url).await?;
 //    println!("Body:\n\n{}", body);
 
     // base64decode
