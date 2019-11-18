@@ -1,0 +1,18 @@
+[package]
+name = "auto-switch"
+version = "0.1.0"
+authors = ["hanb <hanb@kingnet.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = "0.10.0-alpha.2"
+base64 = "0.11.0"
+#async-std = "1.0.1"
+tokio = "0.2.0-alpha.6"
+serde = {version="1.0.102", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.7.2"
+#[features]
+#default=["reqwest"]
